@@ -106,7 +106,7 @@
       this.$store.dispatch('notLoading');
     },
     created() {
-      this.initializeQuiz();
+      this.initializeQuiz(this.$route.params.classId);
       this.quizInitialized = true;
     },
     $trs: {

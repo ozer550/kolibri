@@ -31,7 +31,7 @@ function isExercise(o) {
 /**
  * Composable function presenting primary interface for Quiz Creation
  */
-export default function useQuizCreation(DEBUG = false) {
+export default function useQuizCreation(DEBUG = true) {
   // -----------
   // Local state
   // -----------
@@ -84,6 +84,11 @@ export default function useQuizCreation(DEBUG = false) {
 
   function _generateTestData(numSections = 5, numQuestions = 5) {
     const sections = _quizSections(numSections, numQuestions);
+    sections.forEach(section => {
+      section.questions.forEach(question => {
+        question.exercise_id = uuidv4();
+      });
+    });
     updateQuiz({ question_sources: sections });
     setActiveSection(sections[0].section_id);
   }
@@ -195,8 +200,8 @@ export default function useQuizCreation(DEBUG = false) {
    * @affects _channels - Calls _fetchChannels to bootstrap the list of needed channels
    * Adds a new section to the quiz and sets the activeSectionID to it, preparing the module for
    * use */
-  function initializeQuiz() {
-    set(_quiz, objectWithDefaults({}, Quiz));
+  function initializeQuiz(collection) {
+    set(_quiz, objectWithDefaults({ collection }, Quiz));
     if (DEBUG) {
       _generateTestData();
     } else {
