@@ -15,12 +15,14 @@ jobs:
   build_pex:
     name: Build PEX
     runs-on: ubuntu-20.04
-    container:
-      image: python:2.7.18-buster
     outputs:
       pex-file-name: ${{ steps.get-pex-filename.outputs.pex-file-name }}
     steps:
     - uses: actions/checkout@v4
+    - name: Set up Python 3.6
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.6
     - uses: actions/cache@v3
       with:
         path: ~/.cache/pip
@@ -29,7 +31,7 @@ jobs:
           ${{ runner.os }}-pip-
     - name: Install Python build dependencies
       run: pip install -r requirements/build.txt
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: ${{ inputs.whl-file-name }}
         path: dist
@@ -38,7 +40,7 @@ jobs:
     - name: Get PEX filename
       id: get-pex-filename
       run: echo "pex-file-name=$(ls dist | grep .pex | cat)" >> $GITHUB_OUTPUT
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.get-pex-filename.outputs.pex-file-name }}
         path: dist/${{ steps.get-pex-filename.outputs.pex-file-name }}
