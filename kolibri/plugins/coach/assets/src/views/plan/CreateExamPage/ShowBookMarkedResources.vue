@@ -99,10 +99,11 @@
         type: Function, // ContentNode => String
         required: true,
       },
-      contentLink: {
-        type: Function, // ContentNode => Route
-        required: true,
-      },
+    },
+    methods: {
+      contentLink() {
+        return this.$route;
+      }
     },
   };
 

@@ -9,8 +9,20 @@
         :is="visibleComponent"
         :bookmarksSize="returnBookMarksLength()"
         :resources="resources"
+        :viewMoreButtonState="viewMoreButtonState"
+        :isSelectAllChecked="isSelectAllChecked"
+        :selectionMetadata="selectionMetadata"
+        :selectAllIndeterminate="selectAllIndeterminate"
+        :toggleTopicInWorkingResources="toggleTopicInWorkingResources"
+        :toggleSelected="toggleSelected"
+        :fetchMoreQuizResources="fetchMoreQuizResources"
+        :contentPresentInWorkingResourcePool="contentPresentInWorkingResourcePool"
+        :hasCheckbox="hasCheckbox"
+        :annotateTopicsWithDescendantCounts="annotateTopicsWithDescendantCounts"
+        :setResources="setResources"
         @loadingChange="updateLoadingStatus"
         @bookmarksLength="returnBookMarksLength"
+        @loadcontentList="loadContentList"
       />
 
       <div class="bottom-navigation">
@@ -30,7 +42,7 @@
             <KButton
               :text="coreString('saveChangesAction')"
               :primary="true"
-              :disabled="!hasTopicId() && !bookMarksFlag"
+              :disabled="!hasTopicId()"
               @click="saveSelectedResource"
             />
           </KGridItem>
@@ -45,55 +57,42 @@
 <script>
 
   import { enhancedQuizManagementStrings } from 'kolibri-common/strings/enhancedQuizManagementStrings';
-  import { computed, ref, getCurrentInstance, watch } from 'kolibri.lib.vueCompositionApi';
+  import { computed, ref, getCurrentInstance, watch, set } from 'kolibri.lib.vueCompositionApi';
   import commonCoreStrings from 'kolibri.coreVue.mixins.commonCoreStrings';
-  import { ContentNodeResource, ChannelResource } from 'kolibri.resources';
-  import { ContentNodeKinds } from 'kolibri.coreVue.vuex.constants';
-  import useKResponsiveWindow from 'kolibri-design-system/lib/useKResponsiveWindow';
   import { PageNames } from '../../../constants';
-  import BookmarkIcon from '../LessonResourceSelectionPage/LessonContentCard/BookmarkIcon.vue';
   import useQuizResources from '../../../composables/useQuizResources';
   import { injectQuizCreation } from '../../../composables/useQuizCreation';
-  import ContentCardList from './../LessonResourceSelectionPage/ContentCardList.vue';
-  import ResourceSelectionBreadcrumbs from './../LessonResourceSelectionPage/SearchTools/ResourceSelectionBreadcrumbs.vue';
   import ShowBookMarkedResources from './ShowBookMarkedResources.vue';
   import ShowQuizChannels from './ShowQuizChannels.vue';
 
   export default {
     name: 'ResourceSelection',
-    components: {
-      ContentCardList,
-      BookmarkIcon,
-      ResourceSelectionBreadcrumbs,
-    },
     mixins: [commonCoreStrings],
     setup() {
-
+      const store = getCurrentInstance().proxy.$store;
+      const route = computed(() => store.state.route);
+      const topicId = computed(() => route.value.params.topic_id);
        // The component which is shown to list the items
       const visibleComponent = computed(() => {
-        if(!topicId) {
+        if(!topicId.value) {
             if(route.value.name == PageNames.BOOK_MARKED_RESOURCES) {
                    // The component that fetches & lists bookmarks
                     return ShowBookMarkedResources;
             } else {
                    // The component that shows the Bookmarks link card
                    // and fetches & shows channels
+                    console.log("ITs reaching here but not rendering compoennt");
                     return ShowQuizChannels;
             }
         } else {
             // The component that fetches and shows the children for the current
             // topicId value & the breadcrumbs
             // return ShowTopic;
+            console.log("OR maybe hereee?");
             return;
         }
       });
 
-
-
-      const store = getCurrentInstance().proxy.$store;
-      const route = computed(() => store.state.route);
-      const topicId = computed(() => route.value.params.topic_id);
-      const bookMarksFlag = computed(() => route.value.query.bookmarks);
       const {
         updateSection,
         activeSection,
@@ -125,7 +124,7 @@
         }
       });
 
-      const { windowIsSmall } = useKResponsiveWindow();
+
 
       //const { channels, loading, bookmarks, contentList } = useExerciseResources();
 
@@ -137,51 +136,13 @@
         fetchQuizResources,
         fetchMoreQuizResources,
         hasMore,
-        annotateTopicsWithDescendantCounts,
-        setResources,
       } = useQuizResources({ topicId });
 
       const _loading = ref(true);
 
       const channels = ref([]);
       const bookmarks = ref([]);
-
-      // Load up the channels
-      if (!topicId.value) {
-        const channelBookmarkPromises = [
-          ChannelResource.fetchCollection({
-            params: { has_exercises: true, available: true },
-          }).then(response => {
-            setResources(
-              response.map(chnl => {
-                return {
-                  ...chnl,
-                  id: chnl.root,
-                  title: chnl.name,
-                  kind: ContentNodeKinds.CHANNEL,
-                  is_leaf: false,
-                };
-              })
-            );
-          }),
-          ContentNodeResource.fetchBookmarks({ params: { limit: 25, available: true } }).then(
-            data => {
-              bookmarks.value = data.results ? data.results : [];
-            }
-          ),
-        ];
-
-        Promise.all(channelBookmarkPromises).then(() => {
-          // When we don't have a topicId we're setting the value of useQuizResources.resources
-          // to the value of the channels (treating those channels as the topics) -- we then
-          // call this annotateTopicsWithDescendantCounts method to ensure that the channels are
-          // annotated with their num_assessments and those without assessments are filtered out
-          annotateTopicsWithDescendantCounts(channels.value.map(c => c.id)).then(() => {
-            _loading.value = false;
-          });
-        });
-      }
-
+      const contentList = ref([]);
       const loading = computed(() => {
         return _loading.value || quizResourcesLoading.value;
       });
@@ -191,21 +152,6 @@
           _loading.value = false;
         });
       }
-
-      const contentList = computed(() => {
-        /*
-        if (!topicId.value) {
-          return channels.value;
-        }
-        */
-        if (bookMarksFlag.value) {
-          return bookmarks.value
-            .filter(item => item.kind === 'exercise')
-            .map(item => ({ ...item, is_leaf: true }));
-        }
-
-        return resources.value;
-      });
 
       // This ought to be sure that we're updating our resources whenever the topicId changes
       // without remounting the whole component
@@ -218,7 +164,6 @@
       return {
         topic,
         topicId,
-        contentList,
         resources,
         hasCheckbox,
         loading,
@@ -227,14 +172,14 @@
         resetWorkingResourcePool,
         contentPresentInWorkingResourcePool,
         visibleComponent,
-        //contentList,
+        contentList,
         sectionSettings$,
         selectFromBookmarks$,
         numberOfSelectedBookmarks$,
         //selectFoldersOrExercises$,
         numberOfSelectedResources$,
         numberOfResources$,
-        windowIsSmall,
+
         bookmarks,
         channels,
         viewMoreButtonState,
@@ -244,7 +189,6 @@
         workingResourcePool,
         addToWorkingResourcePool,
         removeFromWorkingResourcePool,
-        bookMarksFlag,
       };
     },
     props: {
@@ -254,9 +198,7 @@
       },
     },
     computed: {
-      isTopicIdSet() {
-        return this.$route.params.topic_id;
-      },
+
       isSelectAllChecked() {
         // Returns true if all the resources in the topic are in the working resource pool
         const workingResourceIds = this.workingResourcePool.map(wr => wr.id);
@@ -294,15 +236,8 @@
         //   console.log('Dynamic function called');
         // };
       },
-      getBookmarksLink() {
-        return {
-          name: PageNames.QUIZ_SELECT_RESOURCES,
-          query: { bookmarks: true },
-        };
-      },
-      channelsLink() {
-        return this.$router.getRoute(PageNames.QUIZ_SELECT_RESOURCES);
-      },
+
+
       /*
       selectAllIsVisible() {
         TO BE IMPLEMENTED IN https://github.com/learningequality/kolibri/issues/11734
@@ -321,25 +256,14 @@
       focusFirstEl() {
         this.$refs.textbox.focus();
       },
-      contentLink(content) {
-        if (this.bookMarksFlag) {
-          return this.$route;
-        } else if (!content.is_leaf) {
-          return {
-            name: PageNames.QUIZ_SELECT_RESOURCES,
-            params: {
-              topic_id: content.id,
-              classId: this.$route.params.classId,
-              section_id: this.$route.params.section_id,
-            },
-          };
-        }
-        return {}; // or return {} if you prefer an empty object
-      },
       updateLoadingStatus(newLoadingStatus) {
         this._loading.value = newLoadingStatus;
       },
-      returnBookMarksLength(bookmarkLength) {
+      loadContentList(content){
+          console.log("succesfull got the resourcesss ehree");
+          set(this.contentList, content);
+      },
+      returnBookMarksLength(bookmarkLength=0) {
         return bookmarkLength;
       },
       toggleSelected({ content, checked }) {
@@ -361,17 +285,9 @@
           this.resetWorkingResourcePool();
         }
       },
-      topicListingLink({ topicId }) {
-        return this.$router.getRoute(
-          PageNames.QUIZ_SELECT_RESOURCES,
-          { topicId },
-          this.$route.query
-        );
-      },
 
-      topicsLink(topicId) {
-        return this.topicListingLink({ ...this.$route.params, topicId });
-      },
+
+
       hasTopicId() {
         return Boolean(this.$route.params.topic_id);
       },
