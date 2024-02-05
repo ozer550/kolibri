@@ -5,56 +5,12 @@
       <KCircularLoader />
     </div>
     <div v-else>
-      <h5
-        class="title-style"
-      >
-        {{ /* selectFoldersOrExercises$() */ }}
-      </h5>
-
-      <div v-if="!isTopicIdSet && bookmarks.length">
-
-        <p>{{ selectFromBookmarks$() }}</p>
-
-        <div>
-          <KRouterLink
-            :appearanceOverrides="{
-              width: '100%',
-              textDecoration: 'none',
-              color: $themeTokens.text
-            }"
-            :to="getBookmarksLink"
-          >
-            <div :class="windowIsSmall ? 'mobile-bookmark-container' : 'bookmark-container'">
-              <BookmarkIcon :class="windowIsSmall ? 'mobile-bookmark-icon' : ''" />
-              <div :class="windowIsSmall ? 'mobile-text' : 'text'">
-                <h3>{{ coreString('bookmarksLabel') }}</h3>
-                <p>{{ numberOfSelectedBookmarks$({ count: bookmarks.length }) }}</p>
-              </div>
-            </div>
-          </KRouterLink>
-        </div>
-      </div>
-
-      <ResourceSelectionBreadcrumbs
-        v-if="isTopicIdSet"
-        :ancestors="topic.ancestors"
-        :channelsLink="channelsLink"
-        :topicsLink="topicsLink"
-      />
-
-      <ContentCardList
-        :contentList="contentList"
-        :showSelectAll="true"
-        :viewMoreButtonState="viewMoreButtonState"
-        :selectAllChecked="isSelectAllChecked"
-        :contentIsChecked="contentPresentInWorkingResourcePool"
-        :contentHasCheckbox="hasCheckbox"
-        :contentCardMessage="selectionMetadata"
-        :contentCardLink="contentLink"
-        :selectAllIndeterminate="selectAllIndeterminate"
-        @changeselectall="toggleTopicInWorkingResources"
-        @change_content_card="toggleSelected"
-        @moreresults="fetchMoreQuizResources"
+      <component
+        :is="visibleComponent"
+        :bookmarksSize="returnBookMarksLength()"
+        :resources="resources"
+        @loadingChange="updateLoadingStatus"
+        @bookmarksLength="returnBookMarksLength"
       />
 
       <div class="bottom-navigation">
@@ -74,7 +30,7 @@
             <KButton
               :text="coreString('saveChangesAction')"
               :primary="true"
-              :disabled="!hasTopicId()"
+              :disabled="!hasTopicId() && !bookMarksFlag"
               @click="saveSelectedResource"
             />
           </KGridItem>
@@ -100,6 +56,8 @@
   import { injectQuizCreation } from '../../../composables/useQuizCreation';
   import ContentCardList from './../LessonResourceSelectionPage/ContentCardList.vue';
   import ResourceSelectionBreadcrumbs from './../LessonResourceSelectionPage/SearchTools/ResourceSelectionBreadcrumbs.vue';
+  import ShowBookMarkedResources from './ShowBookMarkedResources.vue';
+  import ShowQuizChannels from './ShowQuizChannels.vue';
 
   export default {
     name: 'ResourceSelection',
@@ -110,9 +68,32 @@
     },
     mixins: [commonCoreStrings],
     setup() {
+
+       // The component which is shown to list the items
+      const visibleComponent = computed(() => {
+        if(!topicId) {
+            if(route.value.name == PageNames.BOOK_MARKED_RESOURCES) {
+                   // The component that fetches & lists bookmarks
+                    return ShowBookMarkedResources;
+            } else {
+                   // The component that shows the Bookmarks link card
+                   // and fetches & shows channels
+                    return ShowQuizChannels;
+            }
+        } else {
+            // The component that fetches and shows the children for the current
+            // topicId value & the breadcrumbs
+            // return ShowTopic;
+            return;
+        }
+      });
+
+
+
       const store = getCurrentInstance().proxy.$store;
       const route = computed(() => store.state.route);
       const topicId = computed(() => route.value.params.topic_id);
+      const bookMarksFlag = computed(() => route.value.query.bookmarks);
       const {
         updateSection,
         activeSection,
@@ -217,6 +198,12 @@
           return channels.value;
         }
         */
+        if (bookMarksFlag.value) {
+          return bookmarks.value
+            .filter(item => item.kind === 'exercise')
+            .map(item => ({ ...item, is_leaf: true }));
+        }
+
         return resources.value;
       });
 
@@ -239,6 +226,7 @@
         fetchMoreQuizResources,
         resetWorkingResourcePool,
         contentPresentInWorkingResourcePool,
+        visibleComponent,
         //contentList,
         sectionSettings$,
         selectFromBookmarks$,
@@ -256,6 +244,7 @@
         workingResourcePool,
         addToWorkingResourcePool,
         removeFromWorkingResourcePool,
+        bookMarksFlag,
       };
     },
     props: {
@@ -305,13 +294,10 @@
         //   console.log('Dynamic function called');
         // };
       },
-
       getBookmarksLink() {
         return {
-          name: PageNames.BOOK_MARKED_RESOURCES,
-          params: {
-            section_id: this.$route.params.section_id,
-          },
+          name: PageNames.QUIZ_SELECT_RESOURCES,
+          query: { bookmarks: true },
         };
       },
       channelsLink() {
@@ -336,7 +322,9 @@
         this.$refs.textbox.focus();
       },
       contentLink(content) {
-        if (!content.is_leaf) {
+        if (this.bookMarksFlag) {
+          return this.$route;
+        } else if (!content.is_leaf) {
           return {
             name: PageNames.QUIZ_SELECT_RESOURCES,
             params: {
@@ -346,8 +334,13 @@
             },
           };
         }
-
         return {}; // or return {} if you prefer an empty object
+      },
+      updateLoadingStatus(newLoadingStatus) {
+        this._loading.value = newLoadingStatus;
+      },
+      returnBookMarksLength(bookmarkLength) {
+        return bookmarkLength;
       },
       toggleSelected({ content, checked }) {
         if (checked) {
@@ -375,6 +368,7 @@
           this.$route.query
         );
       },
+
       topicsLink(topicId) {
         return this.topicListingLink({ ...this.$route.params, topicId });
       },
